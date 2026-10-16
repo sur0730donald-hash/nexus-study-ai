@@ -163,6 +163,7 @@ function isSupportedExpression(expression) {
 }
 
 // 質問文から y = ... を取り出す
+
 function extractExpressionFromQuestion(question) {
   const text = question
     .replace(/[−–]/g, "-")
@@ -171,19 +172,23 @@ function extractExpressionFromQuestion(question) {
     .replace(/÷/g, "/")
     .replace(/＝/g, "=");
 
+  // y = ... または f(x) = ... を抽出
   const match = text.match(
-    /(?:y|f\(x\))\s*=\s*([^。\n!?！？]+)/
+    /(?:y|f\s*\(\s*x\s*\))\s*=\s*(.*)/i
   );
 
   if (!match) return null;
 
-  let expression = match[1]
-    .replace(/(?:のグラフ|グラフを.*|を描いて.*|をかいて.*|を表示.*|として.*)$/i, "")
-    .trim();
+  let expression = match[1];
 
-  // 末尾に日本語の説明が続いている場合の簡易整理
+  // グラフの依頼文など、数式の後ろの文章を削除
+  expression = expression.split(
+    /のグラフ|グラフを|を描いて|をかいて|を表示|を図示|のグラフを/
+  )[0];
+
+  // 空白と不要な末尾記号を整理
   expression = expression
-    .replace(/\s*(?:を|のグラフ).*$/, "")
+    .replace(/[。！？!?].*$/, "")
     .trim();
 
   expression = normalizeMathExpression(expression);
@@ -192,6 +197,7 @@ function extractExpressionFromQuestion(question) {
     ? expression
     : null;
 }
+
 
 // AIの回答文から y = ... を取り出す
 function extractGraphExpressions(answer) {
