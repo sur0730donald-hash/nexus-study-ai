@@ -6,8 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#101426">
   <title>N.E.X.U.S | AI家庭教師</title>
+
   <link rel="stylesheet" href="style.css">
+
+  <!-- 数学グラフ描画ライブラリ -->
+  <script src="https://cdn.jsdelivr.net/npm/function-plot/dist/function-plot.js"></script>
 </head>
+
 <body>
   <header class="topbar">
     <div class="brand">N.E.X.U.S <span>● ONLINE</span></div>
@@ -16,7 +21,10 @@
   </header>
 
   <main class="layout">
+
+    <!-- 左側パネル -->
     <aside class="side-panel">
+
       <section class="panel">
         <h3>System Stats</h3>
         <p>System <strong>ONLINE</strong></p>
@@ -30,12 +38,26 @@
 
       <section class="panel">
         <h3>Camera / Files</h3>
+
         <label class="file-button">
           ファイルを選択
-          <input id="fileInput" type="file" accept="image/*,.pdf,.txt" multiple>
+          <input
+            id="fileInput"
+            type="file"
+            accept="image/*,.pdf,.txt"
+            multiple
+          >
         </label>
+
         <p id="fileNames">ファイル未選択</p>
-        <video id="cameraPreview" autoplay playsinline muted></video>
+
+        <video
+          id="cameraPreview"
+          autoplay
+          playsinline
+          muted
+        ></video>
+
         <button id="cameraBtn">カメラを起動</button>
       </section>
 
@@ -43,46 +65,92 @@
         <h3>System Uptime</h3>
         <p id="uptime">00:00:00</p>
       </section>
+
     </aside>
 
+    <!-- 中央パネル -->
     <section class="center-panel">
+
       <div class="orb" id="orb">
         <div class="orb-core"></div>
       </div>
+
       <h1>N.E.X.U.S</h1>
       <p class="subtitle">YOUR AI STUDY PARTNER</p>
-      <div id="captions" aria-live="polite">いつでも質問してください。</div>
-      <div id="visualArea" class="visual-area"></div>
+
+      <div id="captions" aria-live="polite">
+        いつでも質問してください。
+      </div>
+
+      <!-- 数学グラフ・図解の表示エリア -->
+      <section
+        id="visualArea"
+        class="visual-area"
+        aria-label="グラフ・図解表示エリア"
+      ></section>
+
     </section>
 
+    <!-- 右側チャットパネル -->
     <section class="chat-panel" id="chatPanel">
+
       <h2>Conversation</h2>
-      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <div
+        id="messages"
+        class="messages"
+        aria-live="polite"
+      ></div>
 
       <form id="chatForm">
-        <textarea id="question" rows="3"
-          placeholder="質問を入力してください..." required></textarea>
-        <button type="submit" id="sendBtn">送信 ➤</button>
+        <textarea
+          id="question"
+          rows="3"
+          placeholder="質問を入力してください..."
+          required
+        ></textarea>
+
+        <button type="submit" id="sendBtn">
+          送信 ➤
+        </button>
       </form>
 
       <div class="chat-actions">
-        <button id="voiceBtn">🎙 音声会話</button>
-        <button id="stopVoiceBtn">■ 読み上げ停止</button>
+        <button type="button" id="voiceBtn">
+          🎙 音声会話
+        </button>
+
+        <button type="button" id="stopVoiceBtn">
+          ■ 読み上げ停止
+        </button>
       </div>
 
-      <p class="small">回答は必ず教科書や授業内容と照らし合わせて確認してください。</p>
+      <p class="small">
+        回答は必ず教科書や授業内容と照らし合わせて確認してください。
+      </p>
+
     </section>
+
   </main>
 
+  <!-- 設定ダイアログ -->
   <dialog id="settingsDialog">
     <h2>設定</h2>
 
-    <label>読み上げ速度
-      <input id="speechRate" type="range" min="0.7" max="1.5"
-        step="0.1" value="1">
+    <label>
+      読み上げ速度
+      <input
+        id="speechRate"
+        type="range"
+        min="0.7"
+        max="1.5"
+        step="0.1"
+        value="1"
+      >
     </label>
 
-    <label>文字サイズ
+    <label>
+      文字サイズ
       <select id="fontSize">
         <option value="15px">小</option>
         <option value="17px" selected>標準</option>
@@ -90,17 +158,25 @@
       </select>
     </label>
 
-    <label>テーマ
+    <label>
+      テーマ
       <select id="theme">
         <option value="dark">ダーク</option>
         <option value="light">ライト</option>
       </select>
     </label>
 
-    <button id="saveSettings">設定を保存</button>
-    <button id="closeSettings">閉じる</button>
+    <button type="button" id="saveSettings">
+      設定を保存
+    </button>
+
+    <button type="button" id="closeSettings">
+      閉じる
+    </button>
   </dialog>
 
+  <!-- アプリ本体 -->
   <script src="app.js"></script>
+
 </body>
 </html>
