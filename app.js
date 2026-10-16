@@ -233,46 +233,95 @@ function extractGraphExpressions(answer) {
 }
 
 // グラフ描画
-function renderMathGraph(expressions) {
-  const area = $("visualArea");
-  if (!area) return;
 
-  area.replaceChildren();
+  area.append(title, graph, formulaList);
 
-  if (typeof window.functionPlot !== "function") {
+  try {
+    window.functionPlot({
+      target: graph,
+      width: Math.max(300, Math.floor(area.clientWidth || 400)),
+      height: 340,
+      grid: true,
+      xAxis: {
+        label: "x（横軸）",
+        domain: [-5, 5],
+        ticks: 11
+      },
+      yAxis: {
+        label: "y（縦軸）",
+        domain: [-10, 10],
+        ticks: 11
+      },
+      data: expressions.map((expression) => ({
+        fn: expression,
+        graphType: "polyline",
+        nSamples: 500
+      }))
+    });
+
+    const tableTitle = document.createElement("h4");
+    tableTitle.textContent = "📋 座標表（x = -5 ～ 5）";
+    tableTitle.style.cssText = "margin:16px 0 8px";
+    area.appendChild(tableTitle);
+
+    const table = document.createElement("table");
+    table.style.cssText =
+      "width:100%;border-collapse:collapse;text-align:center";
+
+    const header = document.createElement("tr");
+
+    ["x", ...expressions.map((_, i) =>
+      expressions.length > 1 ? `y${i + 1}` : "y"
+    )].forEach((text) => {
+      const th = document.createElement("th");
+      th.textContent = text;
+      th.style.cssText = "border:1px solid #888;padding:8px";
+      header.appendChild(th);
+    });
+
+    table.appendChild(header);
+
+    for (let x = -5; x <= 5; x++) {
+      const row = document.createElement("tr");
+
+      const xCell = document.createElement("td");
+      xCell.textContent = x;
+      xCell.style.cssText = "border:1px solid #888;padding:8px";
+      row.appendChild(xCell);
+
+      expressions.forEach((expression) => {
+        const cell = document.createElement("td");
+
+        try {
+          // math.js が読み込まれている場合に数値を計算
+          if (window.math && typeof window.math.evaluate === "function") {
+            const result = window.math.evaluate(expression, { x });
+            cell.textContent =
+              typeof result === "number" && Number.isFinite(result)
+                ? Number(result.toFixed(4)).toString()
+                : "—";
+          } else {
+            cell.textContent = "—";
+          }
+        } catch (_) {
+          cell.textContent = "—";
+        }
+
+        cell.style.cssText = "border:1px solid #888;padding:8px";
+        row.appendChild(cell);
+      });
+
+      table.appendChild(row);
+    }
+
+    area.appendChild(table);
+  } catch (error) {
+    console.error("Graph error:", error);
     area.textContent =
-      "グラフ機能を読み込めません。index.html のライブラリ設定とインターネット接続を確認してください。";
-    return;
+      "グラフを描画できませんでした。数式やライブラリ設定を確認してください。";
   }
+}
 
-  if (!expressions.length) {
-    area.textContent =
-      "グラフにする数式を読み取れませんでした。「y = x^2 のグラフを表示して」のように入力してください。";
-    return;
-  }
-
-  const title = document.createElement("h3");
-  title.textContent = "📈 数学グラフ";
-  title.style.cssText = "margin:12px 0;font-size:18px";
-
-  const graph = document.createElement("div");
-  graph.className = "nexus-math-graph";
-  graph.style.cssText = [
-    "width:100%",
-    "min-height:320px",
-    "background:#ffffff",
-    "border-radius:12px",
-    "overflow:hidden"
-  ].join(";");
-
-  const formulaList = document.createElement("div");
-  formulaList.style.cssText =
-    "padding:8px;overflow-wrap:anywhere;font-size:14px";
-
-  expressions.forEach((expression) => {
-    const item = document.createElement("div");
-    item.textContent = `y = ${expression}`;
-    formulaList.appendChild(item);
   });
 
   area.append(title, graph, formulaList);
