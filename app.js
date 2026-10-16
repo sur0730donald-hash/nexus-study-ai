@@ -2,7 +2,7 @@
 "use strict";
 
 // ★ CloudflareでWorkerを公開したあと、実際のURLに変更する
-const API_URL = "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev";
+const API_URL = "https://nexus-ai-backend.sur0730donald.workers.dev";
 
 const $ = (id) => document.getElementById(id);
 
