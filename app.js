@@ -2,7 +2,6 @@
 "use strict";
 
 const API_URL = "https://nexus-ai-backend.sur0730donald.workers.dev";
-
 const $ = (id) => document.getElementById(id);
 
 let messages = [];
@@ -70,10 +69,10 @@ function renderDiagram(container, answer) {
   const steps = answer
     .split(/\n+|(?<=[。！？])/)
     .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+    .filter(Boolean)
     .slice(0, 6);
 
-  if (steps.length === 0) return;
+  if (!steps.length) return;
 
   const diagram = document.createElement("div");
   diagram.className = "nexus-diagram";
@@ -116,7 +115,6 @@ function renderDiagram(container, answer) {
   });
 
   container.appendChild(diagram);
-  $("messages").scrollTop = $("messages").scrollHeight;
 }
 
 // 数式をグラフ用に整える
@@ -128,49 +126,96 @@ function normalizeMathExpression(expression) {
     .replace(/[＋]/g, "+")
     .replace(/[×·]/g, "*")
     .replace(/÷/g, "/")
-    .replace(/π/g, "pi")
+    .replace(/＝/g, "=")
     .replace(/²/g, "^2")
     .replace(/³/g, "^3")
     .replace(/⁴/g, "^4")
+    .replace(/π/g, "pi")
     .replace(/√\s*\(([^)]+)\)/g, "sqrt($1)")
-    .replace(/√\s*([0-9.]+|x)/g, "sqrt($1)")
-    .replace(/＝/g, "=")
+    .replace(/√\s*(\d+(?:\.\d+)?|x)/g, "sqrt($1)")
     .replace(/\s+/g, "");
 
-  // 2x → 2*x、3(x+1) → 3*(x+1)
-  result = result
-    .replace(/(\d)(x)/gi, "$1*$2")
-    .replace(/(\d)\(/g, "$1*(")
-    .replace(/\)(x|\d|\()/g, ")*$1");
+  // 2x → 2*x
+  result = result.replace(/(\d)(x)/gi, "$1*$2");
+
+  // 2(x+1) → 2*(x+1)
+  result = result.replace(/(\d)\(/g, "$1*(");
+
+  // (x+1)x → (x+1)*x
+  result = result.replace(/\)(x|\d|\()/g, ")*$1");
 
   return result;
 }
 
-// 回答文からグラフにする数式を取り出す
+// 数式として安全に扱える文字か確認
+function isSupportedExpression(expression) {
+  if (!expression || !expression.includes("x")) return false;
+
+  // 数式以外の文章を実行させない
+  if (!/^[0-9x+\-*/^().piqrtabs]+$/i.test(expression)) {
+    return false;
+  }
+
+  // 代入や複数の式は受け付けない
+  if (expression.includes("=")) return false;
+
+  return true;
+}
+
+// 質問文から y = ... を取り出す
+function extractExpressionFromQuestion(question) {
+  const text = question
+    .replace(/[−–]/g, "-")
+    .replace(/[＋]/g, "+")
+    .replace(/[×·]/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/＝/g, "=");
+
+  const match = text.match(
+    /(?:y|f\(x\))\s*=\s*([^。\n!?！？]+)/
+  );
+
+  if (!match) return null;
+
+  let expression = match[1]
+    .replace(/(?:のグラフ|グラフを.*|を描いて.*|をかいて.*|を表示.*|として.*)$/i, "")
+    .trim();
+
+  // 末尾に日本語の説明が続いている場合の簡易整理
+  expression = expression
+    .replace(/\s*(?:を|のグラフ).*$/, "")
+    .trim();
+
+  expression = normalizeMathExpression(expression);
+
+  return isSupportedExpression(expression)
+    ? expression
+    : null;
+}
+
+// AIの回答文から y = ... を取り出す
 function extractGraphExpressions(answer) {
   const expressions = [];
   const seen = new Set();
 
-  // y = ... の形式を探す
-  const regex = /(?:y\s*=\s*)([^。\n；;，,]+?)(?=\s*(?:。|\n|；|;|，|,|$))/g;
+  const regex =
+    /(?:y\s*=|f\(x\)\s*=)\s*([^。\n；;，,]+)/g;
+
   let match;
 
   while ((match = regex.exec(answer)) !== null) {
-    let expression = match[1].trim();
-
-    // 数式の後ろに説明文が続く場合の簡易整理
-    expression = expression
+    let expression = match[1]
       .replace(/[。！？!?].*$/, "")
+      .trim();
+
+    // 数式の後ろに説明文が続いている場合
+    expression = expression
       .replace(/\s+(?:となる|である|です|になります).*$/, "")
       .trim();
 
     expression = normalizeMathExpression(expression);
 
-    // xを含む式だけを対象にする
-    if (!expression.includes("x")) continue;
-
-    // 対応外の記号や文章が混ざった式は除外
-    if (!/^[0-9x+\-*/^().piqrtabs]+$/i.test(expression)) continue;
+    if (!isSupportedExpression(expression)) continue;
 
     if (!seen.has(expression)) {
       seen.add(expression);
@@ -181,8 +226,8 @@ function extractGraphExpressions(answer) {
   return expressions.slice(0, 5);
 }
 
-// 数学グラフ描画
-function renderMathGraph(answer) {
+// グラフ描画
+function renderMathGraph(expressions) {
   const area = $("visualArea");
   if (!area) return;
 
@@ -190,15 +235,13 @@ function renderMathGraph(answer) {
 
   if (typeof window.functionPlot !== "function") {
     area.textContent =
-      "グラフ機能を読み込めませんでした。インターネット接続とHTMLのライブラリ設定を確認してください。";
+      "グラフ機能を読み込めません。index.html のライブラリ設定とインターネット接続を確認してください。";
     return;
   }
 
-  const expressions = extractGraphExpressions(answer);
-
-  if (expressions.length === 0) {
+  if (!expressions.length) {
     area.textContent =
-      "グラフにできる数式が見つかりませんでした。例えば「y = x^2 のグラフを表示して」と質問してください。";
+      "グラフにする数式を読み取れませんでした。「y = x^2 のグラフを表示して」のように入力してください。";
     return;
   }
 
@@ -216,20 +259,17 @@ function renderMathGraph(answer) {
     "overflow:hidden"
   ].join(";");
 
-  const legend = document.createElement("div");
-  legend.style.cssText = [
-    "padding:8px",
-    "overflow-wrap:anywhere",
-    "font-size:14px"
-  ].join(";");
+  const formulaList = document.createElement("div");
+  formulaList.style.cssText =
+    "padding:8px;overflow-wrap:anywhere;font-size:14px";
 
-  expressions.forEach((expression, index) => {
+  expressions.forEach((expression) => {
     const item = document.createElement("div");
-    item.textContent = `式${index + 1}: y = ${expression}`;
-    legend.appendChild(item);
+    item.textContent = `y = ${expression}`;
+    formulaList.appendChild(item);
   });
 
-  area.append(title, graph, legend);
+  area.append(title, graph, formulaList);
 
   try {
     window.functionPlot({
@@ -258,12 +298,12 @@ function renderMathGraph(answer) {
 
     const message = document.createElement("p");
     message.textContent =
-      "この数式はグラフにできませんでした。数式を y = x^2 のような形にして試してください。";
+      "グラフを描画できませんでした。数式の書き方を確認してください。";
     area.appendChild(message);
   }
 }
 
-// グラフを表示する質問かどうか
+// グラフを表示する質問か
 function wantsGraph(question) {
   return /グラフ|関数を描いて|関数をかいて|曲線を描いて|曲線をかいて|接線を描いて|接線をかいて|極値.*図|図を表示|グラフで説明/.test(question);
 }
@@ -285,7 +325,16 @@ async function sendMessage(text) {
   setStatus("回答中...");
   $("captions").textContent = "考えています...";
 
-  const pending = addMessage("assistant", "回答を生成しています...");
+  const pending = addMessage(
+    "assistant",
+    "回答を生成しています..."
+  );
+
+  // AIへ送信する前に質問から数式を抽出する
+  const requestedGraph = wantsGraph(question);
+  const questionExpression = requestedGraph
+    ? extractExpressionFromQuestion(question)
+    : null;
 
   try {
     const response = await fetch(API_URL, {
@@ -306,14 +355,21 @@ async function sendMessage(text) {
 
     pending.textContent = data.reply;
 
-    // 図解を希望したときだけ表示
     if (/図解|図を表示|図で説明|図にして/.test(question)) {
       renderDiagram(pending.parentElement, data.reply);
     }
 
-    // グラフを希望したときだけ表示
-    if (wantsGraph(question)) {
-      renderMathGraph(data.reply);
+    // 質問文に式があれば、AIの回答内容に関係なく描画する
+    if (requestedGraph) {
+      let expressions = [];
+
+      if (questionExpression) {
+        expressions = [questionExpression];
+      } else {
+        expressions = extractGraphExpressions(data.reply);
+      }
+
+      renderMathGraph(expressions);
     }
 
     messages.push({
@@ -383,9 +439,7 @@ function speak(text) {
     voice.lang.toLowerCase().startsWith("ja")
   );
 
-  if (japaneseVoice) {
-    utterance.voice = japaneseVoice;
-  }
+  if (japaneseVoice) utterance.voice = japaneseVoice;
 
   utterance.onstart = () => {
     document.body.classList.add("speaking");
@@ -477,7 +531,6 @@ $("closeSettings").addEventListener("click", () => {
 
 $("saveSettings").addEventListener("click", () => {
   speechRate = Number($("speechRate").value);
-
   document.body.style.fontSize = $("fontSize").value;
 
   document.body.classList.toggle(
@@ -508,7 +561,6 @@ function loadSettings() {
   const theme = localStorage.getItem("nexusTheme") || "dark";
 
   $("theme").value = theme;
-
   document.body.classList.toggle("light", theme === "light");
 }
 
@@ -554,7 +606,7 @@ $("cameraBtn").addEventListener("click", async () => {
   }
 });
 
-// ページを閉じるときにカメラなどを停止
+// ページを閉じるときに停止
 window.addEventListener("beforeunload", () => {
   if (cameraStream) {
     cameraStream.getTracks().forEach((track) => track.stop());
