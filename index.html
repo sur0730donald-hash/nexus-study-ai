@@ -22,10 +22,12 @@
         <p>System <strong>ONLINE</strong></p>
         <p>AI <strong id="aiStatus">未接続</strong></p>
       </section>
-      <section class="panel">
+
+      <section class="panel" id="weatherPanel">
         <h3>Weather</h3>
-        <p id="weatherText">天気情報は未接続です</p>
+        <p id="weatherText">天気情報を取得中...</p>
       </section>
+
       <section class="panel">
         <h3>Camera / Files</h3>
         <label class="file-button">
@@ -36,6 +38,7 @@
         <video id="cameraPreview" autoplay playsinline muted></video>
         <button id="cameraBtn">カメラを起動</button>
       </section>
+
       <section class="panel">
         <h3>System Uptime</h3>
         <p id="uptime">00:00:00</p>
@@ -55,25 +58,30 @@
     <section class="chat-panel" id="chatPanel">
       <h2>Conversation</h2>
       <div id="messages" class="messages" aria-live="polite"></div>
+
       <form id="chatForm">
         <textarea id="question" rows="3"
           placeholder="質問を入力してください..." required></textarea>
         <button type="submit" id="sendBtn">送信 ➤</button>
       </form>
+
       <div class="chat-actions">
         <button id="voiceBtn">🎙 音声会話</button>
         <button id="stopVoiceBtn">■ 読み上げ停止</button>
       </div>
+
       <p class="small">回答は必ず教科書や授業内容と照らし合わせて確認してください。</p>
     </section>
   </main>
 
   <dialog id="settingsDialog">
     <h2>設定</h2>
+
     <label>読み上げ速度
       <input id="speechRate" type="range" min="0.7" max="1.5"
         step="0.1" value="1">
     </label>
+
     <label>文字サイズ
       <select id="fontSize">
         <option value="15px">小</option>
@@ -81,12 +89,14 @@
         <option value="20px">大</option>
       </select>
     </label>
+
     <label>テーマ
       <select id="theme">
         <option value="dark">ダーク</option>
         <option value="light">ライト</option>
       </select>
     </label>
+
     <button id="saveSettings">設定を保存</button>
     <button id="closeSettings">閉じる</button>
   </dialog>
