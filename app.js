@@ -16,6 +16,7 @@ let returnTimer = null;
 // 時計
 function updateClock() {
   const now = new Date();
+
   $("clock").textContent = now.toLocaleString("ja-JP", {
     year: "numeric",
     month: "2-digit",
@@ -28,11 +29,13 @@ function updateClock() {
   });
 }
 
+// 起動時間
 function updateUptime() {
   const seconds = Math.floor((Date.now() - startedAt) / 1000);
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
   const s = String(seconds % 60).padStart(2, "0");
+
   $("uptime").textContent = `${h}:${m}:${s}`;
 }
 
@@ -66,8 +69,8 @@ function renderDiagram(container, answer) {
 
   const steps = answer
     .split(/\n+|(?<=[。！？])/)
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
     .slice(0, 6);
 
   if (steps.length === 0) return;
@@ -87,6 +90,7 @@ function renderDiagram(container, answer) {
   title.textContent = "📊 図解";
   title.style.cssText =
     "font-weight:bold;margin-bottom:12px;font-size:18px";
+
   diagram.appendChild(title);
 
   steps.forEach((step, index) => {
@@ -100,6 +104,7 @@ function renderDiagram(container, answer) {
       "overflow-wrap:anywhere",
       "background:rgba(100,116,139,0.12)"
     ].join(";");
+
     diagram.appendChild(box);
 
     if (index < steps.length - 1) {
@@ -114,12 +119,165 @@ function renderDiagram(container, answer) {
   $("messages").scrollTop = $("messages").scrollHeight;
 }
 
+// 数式をグラフ用に整える
+function normalizeMathExpression(expression) {
+  let result = expression.trim();
+
+  result = result
+    .replace(/[−–]/g, "-")
+    .replace(/[＋]/g, "+")
+    .replace(/[×·]/g, "*")
+    .replace(/÷/g, "/")
+    .replace(/π/g, "pi")
+    .replace(/²/g, "^2")
+    .replace(/³/g, "^3")
+    .replace(/⁴/g, "^4")
+    .replace(/√\s*\(([^)]+)\)/g, "sqrt($1)")
+    .replace(/√\s*([0-9.]+|x)/g, "sqrt($1)")
+    .replace(/＝/g, "=")
+    .replace(/\s+/g, "");
+
+  // 2x → 2*x、3(x+1) → 3*(x+1)
+  result = result
+    .replace(/(\d)(x)/gi, "$1*$2")
+    .replace(/(\d)\(/g, "$1*(")
+    .replace(/\)(x|\d|\()/g, ")*$1");
+
+  return result;
+}
+
+// 回答文からグラフにする数式を取り出す
+function extractGraphExpressions(answer) {
+  const expressions = [];
+  const seen = new Set();
+
+  // y = ... の形式を探す
+  const regex = /(?:y\s*=\s*)([^。\n；;，,]+?)(?=\s*(?:。|\n|；|;|，|,|$))/g;
+  let match;
+
+  while ((match = regex.exec(answer)) !== null) {
+    let expression = match[1].trim();
+
+    // 数式の後ろに説明文が続く場合の簡易整理
+    expression = expression
+      .replace(/[。！？!?].*$/, "")
+      .replace(/\s+(?:となる|である|です|になります).*$/, "")
+      .trim();
+
+    expression = normalizeMathExpression(expression);
+
+    // xを含む式だけを対象にする
+    if (!expression.includes("x")) continue;
+
+    // 対応外の記号や文章が混ざった式は除外
+    if (!/^[0-9x+\-*/^().piqrtabs]+$/i.test(expression)) continue;
+
+    if (!seen.has(expression)) {
+      seen.add(expression);
+      expressions.push(expression);
+    }
+  }
+
+  return expressions.slice(0, 5);
+}
+
+// 数学グラフ描画
+function renderMathGraph(answer) {
+  const area = $("visualArea");
+  if (!area) return;
+
+  area.replaceChildren();
+
+  if (typeof window.functionPlot !== "function") {
+    area.textContent =
+      "グラフ機能を読み込めませんでした。インターネット接続とHTMLのライブラリ設定を確認してください。";
+    return;
+  }
+
+  const expressions = extractGraphExpressions(answer);
+
+  if (expressions.length === 0) {
+    area.textContent =
+      "グラフにできる数式が見つかりませんでした。例えば「y = x^2 のグラフを表示して」と質問してください。";
+    return;
+  }
+
+  const title = document.createElement("h3");
+  title.textContent = "📈 数学グラフ";
+  title.style.cssText = "margin:12px 0;font-size:18px";
+
+  const graph = document.createElement("div");
+  graph.className = "nexus-math-graph";
+  graph.style.cssText = [
+    "width:100%",
+    "min-height:320px",
+    "background:#ffffff",
+    "border-radius:12px",
+    "overflow:hidden"
+  ].join(";");
+
+  const legend = document.createElement("div");
+  legend.style.cssText = [
+    "padding:8px",
+    "overflow-wrap:anywhere",
+    "font-size:14px"
+  ].join(";");
+
+  expressions.forEach((expression, index) => {
+    const item = document.createElement("div");
+    item.textContent = `式${index + 1}: y = ${expression}`;
+    legend.appendChild(item);
+  });
+
+  area.append(title, graph, legend);
+
+  try {
+    window.functionPlot({
+      target: graph,
+      width: Math.max(280, Math.floor(area.clientWidth || 400)),
+      height: 320,
+      grid: true,
+      xAxis: {
+        label: "x",
+        domain: [-5, 5]
+      },
+      yAxis: {
+        label: "y",
+        domain: [-10, 10]
+      },
+      data: expressions.map((expression) => ({
+        fn: expression,
+        graphType: "polyline",
+        sampler: "builtIn",
+        nSamples: 500
+      }))
+    });
+  } catch (error) {
+    console.error("Graph error:", error);
+    area.replaceChildren();
+
+    const message = document.createElement("p");
+    message.textContent =
+      "この数式はグラフにできませんでした。数式を y = x^2 のような形にして試してください。";
+    area.appendChild(message);
+  }
+}
+
+// グラフを表示する質問かどうか
+function wantsGraph(question) {
+  return /グラフ|関数を描いて|関数をかいて|曲線を描いて|曲線をかいて|接線を描いて|接線をかいて|極値.*図|図を表示|グラフで説明/.test(question);
+}
+
 // AIへの質問
 async function sendMessage(text) {
   const question = text.trim();
   if (!question) return;
 
-  messages.push({ role: "user", content: question });
+  messages.push({
+    role: "user",
+    content: question
+  });
+
   addMessage("user", question);
 
   $("question").value = "";
@@ -132,7 +290,9 @@ async function sendMessage(text) {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ messages })
     });
 
@@ -151,7 +311,16 @@ async function sendMessage(text) {
       renderDiagram(pending.parentElement, data.reply);
     }
 
-    messages.push({ role: "assistant", content: data.reply });
+    // グラフを希望したときだけ表示
+    if (wantsGraph(question)) {
+      renderMathGraph(data.reply);
+    }
+
+    messages.push({
+      role: "assistant",
+      content: data.reply
+    });
+
     $("captions").textContent = data.reply;
     setStatus("ONLINE");
 
@@ -189,13 +358,15 @@ function speak(text) {
   let index = 0;
 
   function showCaption() {
-    $("captions").textContent = sentences.slice(index, index + 2).join("");
+    $("captions").textContent =
+      sentences.slice(index, index + 2).join("");
   }
 
   showCaption();
 
   captionTimer = setInterval(() => {
     index += 2;
+
     if (index < sentences.length) {
       showCaption();
     } else {
@@ -212,7 +383,9 @@ function speak(text) {
     voice.lang.toLowerCase().startsWith("ja")
   );
 
-  if (japaneseVoice) utterance.voice = japaneseVoice;
+  if (japaneseVoice) {
+    utterance.voice = japaneseVoice;
+  }
 
   utterance.onstart = () => {
     document.body.classList.add("speaking");
@@ -237,10 +410,15 @@ function speak(text) {
   window.speechSynthesis.speak(utterance);
 }
 
+// 読み上げ停止
 $("stopVoiceBtn").addEventListener("click", () => {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+
   clearInterval(captionTimer);
   clearTimeout(returnTimer);
+
   document.body.classList.remove("speaking");
   document.body.classList.remove("voice-layout");
 });
@@ -251,7 +429,9 @@ $("voiceBtn").addEventListener("click", () => {
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
-    alert("このブラウザでは音声入力に対応していません。Chromeなどで試してください。");
+    alert(
+      "このブラウザでは音声入力に対応していません。Chromeなどで試してください。"
+    );
     return;
   }
 
@@ -297,7 +477,9 @@ $("closeSettings").addEventListener("click", () => {
 
 $("saveSettings").addEventListener("click", () => {
   speechRate = Number($("speechRate").value);
+
   document.body.style.fontSize = $("fontSize").value;
+
   document.body.classList.toggle(
     "light",
     $("theme").value === "light"
@@ -311,15 +493,22 @@ $("saveSettings").addEventListener("click", () => {
 });
 
 function loadSettings() {
-  speechRate = Number(localStorage.getItem("nexusSpeechRate") || "1");
+  speechRate = Number(
+    localStorage.getItem("nexusSpeechRate") || "1"
+  );
+
   $("speechRate").value = String(speechRate);
 
-  const fontSize = localStorage.getItem("nexusFontSize") || "17px";
+  const fontSize =
+    localStorage.getItem("nexusFontSize") || "17px";
+
   $("fontSize").value = fontSize;
   document.body.style.fontSize = fontSize;
 
   const theme = localStorage.getItem("nexusTheme") || "dark";
+
   $("theme").value = theme;
+
   document.body.classList.toggle("light", theme === "light");
 }
 
@@ -342,6 +531,7 @@ $("cameraBtn").addEventListener("click", async () => {
   if (cameraStream) {
     cameraStream.getTracks().forEach((track) => track.stop());
     cameraStream = null;
+
     $("cameraPreview").srcObject = null;
     $("cameraPreview").classList.remove("active");
     $("cameraBtn").textContent = "カメラを起動";
@@ -358,7 +548,9 @@ $("cameraBtn").addEventListener("click", async () => {
     $("cameraPreview").classList.add("active");
     $("cameraBtn").textContent = "カメラを停止";
   } catch (error) {
-    alert("カメラを起動できませんでした。ブラウザの権限を確認してください。");
+    alert(
+      "カメラを起動できませんでした。ブラウザの権限を確認してください。"
+    );
   }
 });
 
@@ -373,7 +565,7 @@ window.addEventListener("beforeunload", () => {
   }
 });
 
-// 天気情報：既存の左側Weather欄に表示
+// 天気情報
 async function updateWeather() {
   const weatherText = $("weatherText");
   if (!weatherText) return;
@@ -389,7 +581,8 @@ async function updateWeather() {
       new URLSearchParams({
         latitude: String(latitude),
         longitude: String(longitude),
-        current: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+        current:
+          "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
         timezone: "Asia/Tokyo"
       });
 
