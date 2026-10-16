@@ -454,3 +454,8 @@ body.visual-mode .visual-area {
     min-height: 70vh;
   }
 }
+#weatherText {
+  white-space: pre-line;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
