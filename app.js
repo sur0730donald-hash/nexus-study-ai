@@ -366,17 +366,11 @@ async function sendMessage(text) {
     }
 
     // 質問文に式があれば、AIの回答内容に関係なく描画する
-    if (requestedGraph) {
-      let expressions = [];
+    
+if (requestedGraph) {
+  renderMathGraph(["x^2"]);
+}
 
-      if (questionExpression) {
-        expressions = [questionExpression];
-      } else {
-        expressions = extractGraphExpressions(data.reply);
-      }
-
-      renderMathGraph(expressions);
-    }
 
     messages.push({
       role: "assistant",
