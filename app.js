@@ -548,3 +548,80 @@ setInterval(updateUptime, 1000);
 
 $("captions").textContent =
   "こんにちは！N.E.X.U.Sです。勉強について質問してください。";
+
+async function updateWeather() {
+  const weatherText = $("weatherText");
+
+  if (!weatherText) return;
+
+  weatherText.textContent = "天気情報を取得中...";
+
+  try {
+    // 愛知県西尾市の座標
+    const latitude = 34.862;
+    const longitude = 137.061;
+
+    const url =
+      "https://api.open-meteo.com/v1/forecast?" +
+      new URLSearchParams({
+        latitude: String(latitude),
+        longitude: String(longitude),
+        current: "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+        timezone: "Asia/Tokyo"
+      });
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error("天気情報を取得できませんでした。");
+    }
+
+    const data = await response.json();
+    const current = data.current;
+
+    if (!current) {
+      throw new Error("天気データがありません。");
+    }
+
+    const weatherNames = {
+      0: "快晴",
+      1: "おおむね晴れ",
+      2: "晴れ時々くもり",
+      3: "くもり",
+      45: "霧",
+      48: "霧",
+      51: "弱い霧雨",
+      53: "霧雨",
+      55: "強い霧雨",
+      61: "弱い雨",
+      63: "雨",
+      65: "強い雨",
+      71: "弱い雪",
+      73: "雪",
+      75: "強い雪",
+      80: "にわか雨",
+      81: "雨",
+      82: "強いにわか雨",
+      95: "雷雨",
+      96: "ひょうを伴う雷雨",
+      99: "強い雷雨"
+    };
+
+    weatherText.textContent =
+      "📍 愛知県西尾市\n" +
+      "🌤️ 天気：" +
+      (weatherNames[current.weather_code] || "その他") +
+      "\n🌡️ 気温：" + current.temperature_2m + " ℃" +
+      "\n🤔 体感温度：" + current.apparent_temperature + " ℃" +
+      "\n💧 湿度：" + current.relative_humidity_2m + " %" +
+      "\n💨 風速：" + current.wind_speed_10m + " km/h" +
+      "\n🕒 更新：" + current.time.replace("T", " ");
+
+  } catch (error) {
+    weatherText.textContent = "天気情報を取得できませんでした。";
+    console.error("Weather error:", error);
+  }
+}
+
+updateWeather();
+setInterval(updateWeather, 10 * 60 * 1000);
