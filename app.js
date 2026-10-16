@@ -173,8 +173,6 @@ $("chatForm").addEventListener("submit", (event) => {
   sendMessage($("question").value);
 });
 
-
-
 // 音声読み上げ
 function speak(text) {
   if (!("speechSynthesis" in window)) {
@@ -375,27 +373,14 @@ window.addEventListener("beforeunload", () => {
   }
 });
 
-// 初期化
-loadSettings();
-createWeatherPanel();
-updateClock();
-updateUptime();
-
-setInterval(updateClock, 1000);
-setInterval(updateUptime, 1000);
-
-$("captions").textContent =
-  "こんにちは！N.E.X.U.Sです。勉強について質問してください。";
-
+// 天気情報：既存の左側Weather欄に表示
 async function updateWeather() {
   const weatherText = $("weatherText");
-
   if (!weatherText) return;
 
   weatherText.textContent = "天気情報を取得中...";
 
   try {
-    // 愛知県西尾市の座標
     const latitude = 34.862;
     const longitude = 137.061;
 
@@ -454,12 +439,21 @@ async function updateWeather() {
       "\n💧 湿度：" + current.relative_humidity_2m + " %" +
       "\n💨 風速：" + current.wind_speed_10m + " km/h" +
       "\n🕒 更新：" + current.time.replace("T", " ");
-
   } catch (error) {
     weatherText.textContent = "天気情報を取得できませんでした。";
     console.error("Weather error:", error);
   }
 }
 
+// 初期化
+loadSettings();
+updateClock();
+updateUptime();
 updateWeather();
+
+setInterval(updateClock, 1000);
+setInterval(updateUptime, 1000);
 setInterval(updateWeather, 10 * 60 * 1000);
+
+$("captions").textContent =
+  "こんにちは！N.E.X.U.Sです。勉強について質問してください。";
