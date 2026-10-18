@@ -14,9 +14,10 @@ let returnTimer = null;
 
 // 時計
 function updateClock() {
-  const now = new Date();
+  const el = $("clock");
+  if (!el) return;
 
-  $("clock").textContent = now.toLocaleString("ja-JP", {
+  el.textContent = new Date().toLocaleString("ja-JP", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -30,12 +31,15 @@ function updateClock() {
 
 // 起動時間
 function updateUptime() {
+  const el = $("uptime");
+  if (!el) return;
+
   const seconds = Math.floor((Date.now() - startedAt) / 1000);
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
   const s = String(seconds % 60).padStart(2, "0");
 
-  $("uptime").textContent = `${h}:${m}:${s}`;
+  el.textContent = `${h}:${m}:${s}`;
 }
 
 // メッセージ表示
@@ -51,18 +55,25 @@ function addMessage(role, content) {
   body.textContent = content;
 
   article.append(label, body);
-  $("messages").appendChild(article);
-  $("messages").scrollTop = $("messages").scrollHeight;
+
+  const area = $("messages");
+  if (area) {
+    area.appendChild(article);
+    area.scrollTop = area.scrollHeight;
+  }
 
   return body;
 }
 
 function setStatus(text) {
-  $("aiStatus").textContent = text;
+  const el = $("aiStatus");
+  if (el) el.textContent = text;
 }
 
 // 図解機能
 function renderDiagram(container, answer) {
+  if (!container) return;
+
   const oldDiagram = container.querySelector(".nexus-diagram");
   if (oldDiagram) oldDiagram.remove();
 
@@ -76,34 +87,21 @@ function renderDiagram(container, answer) {
 
   const diagram = document.createElement("div");
   diagram.className = "nexus-diagram";
-  diagram.style.cssText = [
-    "margin-top:16px",
-    "padding:16px",
-    "border:1px solid #64748b",
-    "border-radius:12px",
-    "text-align:center",
-    "background:rgba(100,116,139,0.08)"
-  ].join(";");
+  diagram.style.cssText =
+    "margin-top:16px;padding:16px;border:1px solid #64748b;" +
+    "border-radius:12px;text-align:center;background:rgba(100,116,139,0.08)";
 
   const title = document.createElement("div");
   title.textContent = "📊 図解";
-  title.style.cssText =
-    "font-weight:bold;margin-bottom:12px;font-size:18px";
-
+  title.style.cssText = "font-weight:bold;margin-bottom:12px;font-size:18px";
   diagram.appendChild(title);
 
   steps.forEach((step, index) => {
     const box = document.createElement("div");
     box.textContent = step;
-    box.style.cssText = [
-      "padding:12px",
-      "margin:6px auto",
-      "border:1px solid #64748b",
-      "border-radius:8px",
-      "overflow-wrap:anywhere",
-      "background:rgba(100,116,139,0.12)"
-    ].join(";");
-
+    box.style.cssText =
+      "padding:12px;margin:6px auto;border:1px solid #64748b;" +
+      "border-radius:8px;overflow-wrap:anywhere;background:rgba(100,116,139,0.12)";
     diagram.appendChild(box);
 
     if (index < steps.length - 1) {
@@ -135,13 +133,8 @@ function normalizeMathExpression(expression) {
     .replace(/√\s*(\d+(?:\.\d+)?|x)/g, "sqrt($1)")
     .replace(/\s+/g, "");
 
-  // 2x → 2*x
   result = result.replace(/(\d)(x)/gi, "$1*$2");
-
-  // 2(x+1) → 2*(x+1)
   result = result.replace(/(\d)\(/g, "$1*(");
-
-  // (x+1)x → (x+1)*x
   result = result.replace(/\)(x|\d|\()/g, ")*$1");
 
   return result;
@@ -150,20 +143,12 @@ function normalizeMathExpression(expression) {
 // 数式として安全に扱える文字か確認
 function isSupportedExpression(expression) {
   if (!expression || !expression.includes("x")) return false;
-
-  // 数式以外の文章を実行させない
-  if (!/^[0-9x+\-*/^().piqrtabs]+$/i.test(expression)) {
-    return false;
-  }
-
-  // 代入や複数の式は受け付けない
+  if (!/^[0-9x+\-*/^().piqrtabs]+$/i.test(expression)) return false;
   if (expression.includes("=")) return false;
-
   return true;
 }
 
-// 質問文から y = ... を取り出す
-
+// 質問文から数式を取り出す
 function extractExpressionFromQuestion(question) {
   const text = question
     .replace(/[−–]/g, "-")
@@ -172,7 +157,6 @@ function extractExpressionFromQuestion(question) {
     .replace(/÷/g, "/")
     .replace(/＝/g, "=");
 
-  // y = ... または f(x) = ... を抽出
   const match = text.match(
     /(?:y|f\s*\(\s*x\s*\))\s*=\s*(.*)/i
   );
@@ -181,41 +165,27 @@ function extractExpressionFromQuestion(question) {
 
   let expression = match[1];
 
-  // グラフの依頼文など、数式の後ろの文章を削除
   expression = expression.split(
     /のグラフ|グラフを|を描いて|をかいて|を表示|を図示|のグラフを/
   )[0];
 
-  // 空白と不要な末尾記号を整理
-  expression = expression
-    .replace(/[。！？!?].*$/, "")
-    .trim();
-
+  expression = expression.replace(/[。！？!?].*$/, "").trim();
   expression = normalizeMathExpression(expression);
 
-  return isSupportedExpression(expression)
-    ? expression
-    : null;
+  return isSupportedExpression(expression) ? expression : null;
 }
 
-
-// AIの回答文から y = ... を取り出す
+// AIの回答文から数式を取り出す
 function extractGraphExpressions(answer) {
   const expressions = [];
   const seen = new Set();
 
-  const regex =
-    /(?:y\s*=|f\(x\)\s*=)\s*([^。\n；;，,]+)/g;
-
+  const regex = /(?:y\s*=|f\(x\)\s*=)\s*([^。\n；;，,]+)/g;
   let match;
 
   while ((match = regex.exec(answer)) !== null) {
     let expression = match[1]
       .replace(/[。！？!?].*$/, "")
-      .trim();
-
-    // 数式の後ろに説明文が続いている場合
-    expression = expression
       .replace(/\s+(?:となる|である|です|になります).*$/, "")
       .trim();
 
@@ -233,13 +203,47 @@ function extractGraphExpressions(answer) {
 }
 
 // グラフ描画
+function renderMathGraph(expressions) {
+  const area = $("visualArea");
+  if (!area) return false;
+
+  area.replaceChildren();
+
+  if (typeof window.functionPlot !== "function") {
+    area.textContent = "グラフ機能を読み込めません。";
+    return false;
+  }
+
+  if (!expressions || expressions.length === 0) {
+    area.textContent =
+      "グラフにする数式を読み取れませんでした。" +
+      "「y = x^2 のグラフを表示して」のように入力してください。";
+    return false;
+  }
+
+  const title = document.createElement("h3");
+  title.textContent = "📈 数学グラフ";
+  title.style.cssText = "margin:12px 0;font-size:18px";
+
+  const graph = document.createElement("div");
+  graph.style.cssText =
+    "width:100%;min-height:320px;background:white;border-radius:12px;overflow:hidden";
+
+  const formulaList = document.createElement("div");
+  formulaList.style.cssText = "padding:8px;font-size:14px;overflow-wrap:anywhere";
+
+  expressions.forEach((expression) => {
+    const item = document.createElement("div");
+    item.textContent = `y = ${expression}`;
+    formulaList.appendChild(item);
+  });
 
   area.append(title, graph, formulaList);
 
   try {
     window.functionPlot({
       target: graph,
-      width: Math.max(300, Math.floor(area.clientWidth || 400)),
+      width: Math.max(280, Math.floor(area.clientWidth || 400)),
       height: 340,
       grid: true,
       xAxis: {
@@ -255,14 +259,15 @@ function extractGraphExpressions(answer) {
       data: expressions.map((expression) => ({
         fn: expression,
         graphType: "polyline",
+        sampler: "builtIn",
         nSamples: 500
       }))
     });
 
-    const tableTitle = document.createElement("h4");
-    tableTitle.textContent = "📋 座標表（x = -5 ～ 5）";
-    tableTitle.style.cssText = "margin:16px 0 8px";
-    area.appendChild(tableTitle);
+    const heading = document.createElement("h4");
+    heading.textContent = "📋 座標表（x = -5 ～ 5）";
+    heading.style.cssText = "margin:16px 0 8px";
+    area.appendChild(heading);
 
     const table = document.createElement("table");
     table.style.cssText =
@@ -272,9 +277,9 @@ function extractGraphExpressions(answer) {
 
     ["x", ...expressions.map((_, i) =>
       expressions.length > 1 ? `y${i + 1}` : "y"
-    )].forEach((text) => {
+    )].forEach((label) => {
       const th = document.createElement("th");
-      th.textContent = text;
+      th.textContent = label;
       th.style.cssText = "border:1px solid #888;padding:8px";
       header.appendChild(th);
     });
@@ -293,15 +298,14 @@ function extractGraphExpressions(answer) {
         const cell = document.createElement("td");
 
         try {
-          // math.js が読み込まれている場合に数値を計算
-          if (window.math && typeof window.math.evaluate === "function") {
+          if (!window.math || typeof window.math.evaluate !== "function") {
+            cell.textContent = "—";
+          } else {
             const result = window.math.evaluate(expression, { x });
             cell.textContent =
               typeof result === "number" && Number.isFinite(result)
-                ? Number(result.toFixed(4)).toString()
+                ? String(Number(result.toFixed(4)))
                 : "—";
-          } else {
-            cell.textContent = "—";
           }
         } catch (_) {
           cell.textContent = "—";
@@ -315,46 +319,16 @@ function extractGraphExpressions(answer) {
     }
 
     area.appendChild(table);
-  } catch (error) {
-    console.error("Graph error:", error);
-    area.textContent =
-      "グラフを描画できませんでした。数式やライブラリ設定を確認してください。";
-  }
-}
-
-  });
-
-  area.append(title, graph, formulaList);
-
-  try {
-    window.functionPlot({
-      target: graph,
-      width: Math.max(280, Math.floor(area.clientWidth || 400)),
-      height: 320,
-      grid: true,
-      xAxis: {
-        label: "x",
-        domain: [-5, 5]
-      },
-      yAxis: {
-        label: "y",
-        domain: [-10, 10]
-      },
-      data: expressions.map((expression) => ({
-        fn: expression,
-        graphType: "polyline",
-        sampler: "builtIn",
-        nSamples: 500
-      }))
-    });
+    return true;
   } catch (error) {
     console.error("Graph error:", error);
     area.replaceChildren();
 
     const message = document.createElement("p");
-    message.textContent =
-      "グラフを描画できませんでした。数式の書き方を確認してください。";
+    message.textContent = "グラフの描画に失敗しました。数式やライブラリ設定を確認してください。";
     area.appendChild(message);
+
+    return false;
   }
 }
 
@@ -368,24 +342,24 @@ async function sendMessage(text) {
   const question = text.trim();
   if (!question) return;
 
-  messages.push({
-    role: "user",
-    content: question
-  });
+  const sendBtn = $("sendBtn");
+  const questionInput = $("question");
 
+  if (sendBtn && sendBtn.disabled) return;
+
+  messages.push({ role: "user", content: question });
   addMessage("user", question);
 
-  $("question").value = "";
-  $("sendBtn").disabled = true;
+  if (questionInput) questionInput.value = "";
+  if (sendBtn) sendBtn.disabled = true;
+
   setStatus("回答中...");
-  $("captions").textContent = "考えています...";
 
-  const pending = addMessage(
-    "assistant",
-    "回答を生成しています..."
-  );
+  const captions = $("captions");
+  if (captions) captions.textContent = "考えています...";
 
-  // AIへ送信する前に質問から数式を抽出する
+  const pending = addMessage("assistant", "回答を生成しています...");
+
   const requestedGraph = wantsGraph(question);
   const questionExpression = requestedGraph
     ? extractExpressionFromQuestion(question)
@@ -394,9 +368,7 @@ async function sendMessage(text) {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messages })
     });
 
@@ -414,19 +386,23 @@ async function sendMessage(text) {
       renderDiagram(pending.parentElement, data.reply);
     }
 
-    // 質問文に式があれば、AIの回答内容に関係なく描画する
-    
-if (requestedGraph) {
-  renderMathGraph(["x^2"]);
-}
+    if (requestedGraph) {
+      const expressions = questionExpression
+        ? [questionExpression]
+        : extractGraphExpressions(data.reply);
 
+      const rendered = renderMathGraph(expressions);
 
-    messages.push({
-      role: "assistant",
-      content: data.reply
-    });
+      // AIが「グラフは表示できない」と答えても、
+      // 実際にグラフが描画できた場合は案内文を差し替える
+      if (rendered && /直接.*グラフ.*表示できません|グラフ.*表示することはできません/.test(data.reply)) {
+        pending.textContent = "グラフを表示しました。数式と座標表を確認してください。";
+      }
+    }
 
-    $("captions").textContent = data.reply;
+    messages.push({ role: "assistant", content: data.reply });
+
+    if (captions) captions.textContent = data.reply;
     setStatus("ONLINE");
 
     if (document.body.classList.contains("voice-layout")) {
@@ -434,24 +410,29 @@ if (requestedGraph) {
     }
   } catch (error) {
     pending.textContent = "エラー：" + error.message;
-    $("captions").textContent = "接続設定を確認してください。";
+    if (captions) captions.textContent = "接続設定を確認してください。";
     setStatus("接続エラー");
-    console.error(error);
+    console.error("Chat error:", error);
   } finally {
-    $("sendBtn").disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
-$("chatForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  sendMessage($("question").value);
-});
+// 送信イベント
+const chatForm = $("chatForm");
+if (chatForm) {
+  chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    sendMessage($("question")?.value || "");
+  });
+}
 
 // 音声読み上げ
 function speak(text) {
   if (!("speechSynthesis" in window)) {
-    $("captions").textContent =
-      "このブラウザでは音声読み上げを利用できません。";
+    if ($("captions")) {
+      $("captions").textContent = "このブラウザでは音声読み上げを利用できません。";
+    }
     return;
   }
 
@@ -463,8 +444,9 @@ function speak(text) {
   let index = 0;
 
   function showCaption() {
-    $("captions").textContent =
-      sentences.slice(index, index + 2).join("");
+    if ($("captions")) {
+      $("captions").textContent = sentences.slice(index, index + 2).join("");
+    }
   }
 
   showCaption();
@@ -490,9 +472,7 @@ function speak(text) {
 
   if (japaneseVoice) utterance.voice = japaneseVoice;
 
-  utterance.onstart = () => {
-    document.body.classList.add("speaking");
-  };
+  utterance.onstart = () => document.body.classList.add("speaking");
 
   utterance.onend = () => {
     document.body.classList.remove("speaking");
@@ -514,146 +494,154 @@ function speak(text) {
 }
 
 // 読み上げ停止
-$("stopVoiceBtn").addEventListener("click", () => {
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
-  }
+const stopVoiceBtn = $("stopVoiceBtn");
+if (stopVoiceBtn) {
+  stopVoiceBtn.addEventListener("click", () => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 
-  clearInterval(captionTimer);
-  clearTimeout(returnTimer);
+    clearInterval(captionTimer);
+    clearTimeout(returnTimer);
 
-  document.body.classList.remove("speaking");
-  document.body.classList.remove("voice-layout");
-});
+    document.body.classList.remove("speaking", "voice-layout");
+  });
+}
 
 // 音声入力
-$("voiceBtn").addEventListener("click", () => {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
+const voiceBtn = $("voiceBtn");
+if (voiceBtn) {
+  voiceBtn.addEventListener("click", () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
 
-  if (!SpeechRecognition) {
-    alert(
-      "このブラウザでは音声入力に対応していません。Chromeなどで試してください。"
-    );
-    return;
-  }
+    if (!SpeechRecognition) {
+      alert("このブラウザでは音声入力に対応していません。Chromeなどで試してください。");
+      return;
+    }
 
-  if (recognition) {
-    recognition.stop();
-    recognition = null;
-    return;
-  }
+    if (recognition) {
+      recognition.stop();
+      recognition = null;
+      return;
+    }
 
-  recognition = new SpeechRecognition();
-  recognition.lang = "ja-JP";
-  recognition.interimResults = false;
-  recognition.continuous = false;
+    recognition = new SpeechRecognition();
+    recognition.lang = "ja-JP";
+    recognition.interimResults = false;
+    recognition.continuous = false;
 
-  document.body.classList.add("voice-layout");
-  $("captions").textContent = "話してください...";
+    document.body.classList.add("voice-layout");
+    if ($("captions")) $("captions").textContent = "話してください...";
 
-  recognition.onresult = (event) => {
-    const spokenText = event.results[0][0].transcript;
-    $("captions").textContent = spokenText;
-    sendMessage(spokenText);
-  };
+    recognition.onresult = (event) => {
+      const spokenText = event.results[0][0].transcript;
+      if ($("captions")) $("captions").textContent = spokenText;
+      sendMessage(spokenText);
+    };
 
-  recognition.onerror = (event) => {
-    $("captions").textContent = "音声入力エラー：" + event.error;
-  };
+    recognition.onerror = (event) => {
+      if ($("captions")) {
+        $("captions").textContent = "音声入力エラー：" + event.error;
+      }
+    };
 
-  recognition.onend = () => {
-    recognition = null;
-  };
+    recognition.onend = () => {
+      recognition = null;
+    };
 
-  recognition.start();
-});
+    recognition.start();
+  });
+}
 
 // 設定画面
-$("settingsBtn").addEventListener("click", () => {
-  $("settingsDialog").showModal();
-});
+const settingsBtn = $("settingsBtn");
+if (settingsBtn) {
+  settingsBtn.addEventListener("click", () => $("settingsDialog")?.showModal());
+}
 
-$("closeSettings").addEventListener("click", () => {
-  $("settingsDialog").close();
-});
+const closeSettings = $("closeSettings");
+if (closeSettings) {
+  closeSettings.addEventListener("click", () => $("settingsDialog")?.close());
+}
 
-$("saveSettings").addEventListener("click", () => {
-  speechRate = Number($("speechRate").value);
-  document.body.style.fontSize = $("fontSize").value;
+const saveSettings = $("saveSettings");
+if (saveSettings) {
+  saveSettings.addEventListener("click", () => {
+    speechRate = Number($("speechRate").value);
+    document.body.style.fontSize = $("fontSize").value;
 
-  document.body.classList.toggle(
-    "light",
-    $("theme").value === "light"
-  );
+    document.body.classList.toggle("light", $("theme").value === "light");
 
-  localStorage.setItem("nexusSpeechRate", String(speechRate));
-  localStorage.setItem("nexusFontSize", $("fontSize").value);
-  localStorage.setItem("nexusTheme", $("theme").value);
+    localStorage.setItem("nexusSpeechRate", String(speechRate));
+    localStorage.setItem("nexusFontSize", $("fontSize").value);
+    localStorage.setItem("nexusTheme", $("theme").value);
 
-  $("settingsDialog").close();
-});
+    $("settingsDialog")?.close();
+  });
+}
 
 function loadSettings() {
-  speechRate = Number(
-    localStorage.getItem("nexusSpeechRate") || "1"
-  );
+  speechRate = Number(localStorage.getItem("nexusSpeechRate") || "1");
 
-  $("speechRate").value = String(speechRate);
+  if ($("speechRate")) $("speechRate").value = String(speechRate);
 
-  const fontSize =
-    localStorage.getItem("nexusFontSize") || "17px";
-
-  $("fontSize").value = fontSize;
+  const fontSize = localStorage.getItem("nexusFontSize") || "17px";
+  if ($("fontSize")) $("fontSize").value = fontSize;
   document.body.style.fontSize = fontSize;
 
   const theme = localStorage.getItem("nexusTheme") || "dark";
+  if ($("theme")) $("theme").value = theme;
 
-  $("theme").value = theme;
   document.body.classList.toggle("light", theme === "light");
 }
 
 // ファイル名の表示
-$("fileInput").addEventListener("change", (event) => {
-  const files = Array.from(event.target.files || []);
+const fileInput = $("fileInput");
+if (fileInput) {
+  fileInput.addEventListener("change", (event) => {
+    const files = Array.from(event.target.files || []);
 
-  $("fileNames").textContent = files.length
-    ? files.map((file) => file.name).join(", ")
-    : "ファイル未選択";
+    if ($("fileNames")) {
+      $("fileNames").textContent = files.length
+        ? files.map((file) => file.name).join(", ")
+        : "ファイル未選択";
+    }
 
-  if (files.length) {
-    $("captions").textContent =
-      "ファイルを選択しました。ただし、現在の版ではファイルの中身はAIに送信されません。";
-  }
-});
+    if (files.length && $("captions")) {
+      $("captions").textContent =
+        "ファイルを選択しました。ただし、現在の版ではファイルの中身はAIに送信されません。";
+    }
+  });
+}
 
 // カメラ
-$("cameraBtn").addEventListener("click", async () => {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
-    cameraStream = null;
+const cameraBtn = $("cameraBtn");
+if (cameraBtn) {
+  cameraBtn.addEventListener("click", async () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      cameraStream = null;
 
-    $("cameraPreview").srcObject = null;
-    $("cameraPreview").classList.remove("active");
-    $("cameraBtn").textContent = "カメラを起動";
-    return;
-  }
+      $("cameraPreview").srcObject = null;
+      $("cameraPreview").classList.remove("active");
+      cameraBtn.textContent = "カメラを起動";
+      return;
+    }
 
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false
-    });
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false
+      });
 
-    $("cameraPreview").srcObject = cameraStream;
-    $("cameraPreview").classList.add("active");
-    $("cameraBtn").textContent = "カメラを停止";
-  } catch (error) {
-    alert(
-      "カメラを起動できませんでした。ブラウザの権限を確認してください。"
-    );
-  }
-});
+      $("cameraPreview").srcObject = cameraStream;
+      $("cameraPreview").classList.add("active");
+      cameraBtn.textContent = "カメラを停止";
+    } catch (error) {
+      alert("カメラを起動できませんでした。ブラウザの権限を確認してください。");
+      console.error("Camera error:", error);
+    }
+  });
+}
 
 // ページを閉じるときに停止
 window.addEventListener("beforeunload", () => {
@@ -696,9 +684,7 @@ async function updateWeather() {
     const data = await response.json();
     const current = data.current;
 
-    if (!current) {
-      throw new Error("天気データがありません。");
-    }
+    if (!current) throw new Error("天気データがありません。");
 
     const weatherNames = {
       0: "快晴",
@@ -726,8 +712,7 @@ async function updateWeather() {
 
     weatherText.textContent =
       "📍 愛知県西尾市\n" +
-      "🌤️ 天気：" +
-      (weatherNames[current.weather_code] || "その他") +
+      "🌤️ 天気：" + (weatherNames[current.weather_code] || "その他") +
       "\n🌡️ 気温：" + current.temperature_2m + " ℃" +
       "\n🤔 体感温度：" + current.apparent_temperature + " ℃" +
       "\n💧 湿度：" + current.relative_humidity_2m + " %" +
@@ -740,14 +725,24 @@ async function updateWeather() {
 }
 
 // 初期化
-loadSettings();
-updateClock();
-updateUptime();
-updateWeather();
+function initializeApp() {
+  loadSettings();
+  updateClock();
+  updateUptime();
+  updateWeather();
 
-setInterval(updateClock, 1000);
-setInterval(updateUptime, 1000);
-setInterval(updateWeather, 10 * 60 * 1000);
+  setInterval(updateClock, 1000);
+  setInterval(updateUptime, 1000);
+  setInterval(updateWeather, 10 * 60 * 1000);
 
-$("captions").textContent =
-  "こんにちは！N.E.X.U.Sです。勉強について質問してください。";
+  if ($("captions")) {
+    $("captions").textContent =
+      "こんにちは！N.E.X.U.Sです。勉強について質問してください。";
+  }
+}
+
+try {
+  initializeApp();
+} catch (error) {
+  console.error("NEXUS initialization error:", error);
+}
